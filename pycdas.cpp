@@ -314,17 +314,12 @@ int main(int argc, char* argv[])
         }
     }
 
-    if (!infile) {
-        fputs("No input file specified\n", stderr);
-        return 1;
-    }
-
     PycModule mod;
     if (!marshalled) {
         try {
             mod.loadFromFile(infile);
         } catch (std::exception &ex) {
-            fprintf(stderr, "Error disassembling %s: %s\n", infile, ex.what());
+            fprintf(stderr, "Error disassembling %s: %s\n", infile ? infile : "stdin", ex.what());
             return 1;
         }
     } else {
@@ -342,6 +337,11 @@ int main(int argc, char* argv[])
         int minor = std::stoi(s.substr(dot+1, s.size()));
         mod.loadFromMarshalledFile(infile, major, minor);
     }
+
+    if (!infile) {
+        infile = "stdin";
+    }
+
     const char* dispname = strrchr(infile, PATHSEP);
     dispname = (dispname == NULL) ? infile : dispname + 1;
     formatted_print(*pyc_output, "%s (Python %d.%d%s)\n", dispname,

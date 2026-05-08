@@ -54,17 +54,12 @@ int main(int argc, char* argv[])
         }
     }
 
-    if (!infile) {
-        fputs("No input file specified\n", stderr);
-        return 1;
-    }
-
     PycModule mod;
     if (!marshalled) {
         try {
             mod.loadFromFile(infile);
         } catch (std::exception& ex) {
-            fprintf(stderr, "Error loading file %s: %s\n", infile, ex.what());
+            fprintf(stderr, "Error loading file %s: %s\n", infile ? infile : "stdin", ex.what());
             return 1;
         }
     } else {
@@ -81,6 +76,10 @@ int main(int argc, char* argv[])
         int major = std::stoi(s.substr(0, dot));
         int minor = std::stoi(s.substr(dot+1, s.size()));
         mod.loadFromMarshalledFile(infile, major, minor);
+    }
+
+    if (!infile) {
+        infile = "stdin";
     }
 
     if (!mod.isValid()) {

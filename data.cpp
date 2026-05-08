@@ -40,7 +40,7 @@ Pyc_INT64 PycData::get64()
 /* PycFile */
 PycFile::PycFile(const char* filename)
 {
-    m_stream = fopen(filename, "rb");
+    m_stream = filename ? fopen(filename, "rb") : stdin;
 }
 
 bool PycFile::atEof() const
