@@ -7,13 +7,16 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Debug options.
 option(ENABLE_BLOCK_DEBUG "Enable block debugging" OFF)
 option(ENABLE_STACK_DEBUG "Enable stack debugging" OFF)
-
+option(ENABLE_CODE_DEBUG "Enable opcode debugging" OFF)
 # Turn debug defs on if they're enabled.
 if (ENABLE_BLOCK_DEBUG)
     add_definitions(-DBLOCK_DEBUG)
 endif()
 if (ENABLE_STACK_DEBUG)
     add_definitions(-DSTACK_DEBUG)
+endif()
+if (ENABLE_CODE_DEBUG)
+    add_definitions(-DCODE_DEBUG)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
