@@ -249,6 +249,10 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
         fprintf(stderr, "%-7d %-30s\n", curpos, Pyc::OpcodeName(opcode));
     #endif
 
+        if (unpack < 0) {
+            unpack = 0;
+        }
+
         switch (opcode) {
         case Pyc::BINARY_OP_A:
             {
@@ -1174,6 +1178,10 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
         case Pyc::INSTRUMENTED_POP_JUMP_IF_NOT_NONE_A:
         case Pyc::POP_JUMP_FORWARD_IF_NONE_A:
         case Pyc::POP_JUMP_FORWARD_IF_NOT_NONE_A:
+        case Pyc::POP_JUMP_BACKWARD_IF_TRUE_A:
+        case Pyc::POP_JUMP_BACKWARD_IF_FALSE_A:
+        case Pyc::POP_JUMP_BACKWARD_IF_NONE_A:
+        case Pyc::POP_JUMP_BACKWARD_IF_NOT_NONE_A:
             {
                 PycRef<ASTNode> cond = stack.top();
                 PycRef<ASTCondBlock> ifblk;
@@ -1181,10 +1189,12 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
 
                 if (opcode == Pyc::POP_JUMP_IF_NONE_A || opcode == Pyc::POP_JUMP_IF_NOT_NONE_A
                     || opcode == Pyc::INSTRUMENTED_POP_JUMP_IF_NONE_A || opcode == Pyc::INSTRUMENTED_POP_JUMP_IF_NOT_NONE_A
-                    || opcode == Pyc::POP_JUMP_FORWARD_IF_NONE_A || opcode == Pyc::POP_JUMP_FORWARD_IF_NOT_NONE_A) {
+                    || opcode == Pyc::POP_JUMP_FORWARD_IF_NONE_A || opcode == Pyc::POP_JUMP_FORWARD_IF_NOT_NONE_A
+                    || opcode == Pyc::POP_JUMP_BACKWARD_IF_NONE_A || opcode == Pyc::POP_JUMP_BACKWARD_IF_NOT_NONE_A) {
                     int compare_op = (opcode == Pyc::POP_JUMP_IF_NONE_A
                         || opcode == Pyc::INSTRUMENTED_POP_JUMP_IF_NONE_A
-                        || opcode == Pyc::POP_JUMP_FORWARD_IF_NONE_A)
+                        || opcode == Pyc::POP_JUMP_FORWARD_IF_NONE_A
+                        || opcode == Pyc::POP_JUMP_BACKWARD_IF_NONE_A)
                                      ? ASTCompare::CMP_IS : ASTCompare::CMP_IS_NOT;
                     cond = new ASTCompare(cond, new ASTObject(Pyc_None), compare_op);
                 }
@@ -1200,7 +1210,11 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                         || opcode == Pyc::INSTRUMENTED_POP_JUMP_IF_NONE_A
                         || opcode == Pyc::INSTRUMENTED_POP_JUMP_IF_NOT_NONE_A
                         || opcode == Pyc::POP_JUMP_FORWARD_IF_NONE_A
-                        || opcode == Pyc::POP_JUMP_FORWARD_IF_NOT_NONE_A) {
+                        || opcode == Pyc::POP_JUMP_FORWARD_IF_NOT_NONE_A
+                        || opcode == Pyc::POP_JUMP_BACKWARD_IF_TRUE_A
+                        || opcode == Pyc::POP_JUMP_BACKWARD_IF_FALSE_A
+                        || opcode == Pyc::POP_JUMP_BACKWARD_IF_NONE_A
+                        || opcode == Pyc::POP_JUMP_BACKWARD_IF_NOT_NONE_A) {
                     /* Pop condition before the jump */
                     stack.pop();
                     popped = ASTCondBlock::PRE_POPPED;
@@ -1227,18 +1241,32 @@ PycRef<ASTNode> BuildFromCode(PycRef<PycCode> code, PycModule* mod)
                         || opcode == Pyc::INSTRUMENTED_POP_JUMP_IF_NONE_A
                         || opcode == Pyc::INSTRUMENTED_POP_JUMP_IF_NOT_NONE_A
                         || opcode == Pyc::POP_JUMP_FORWARD_IF_NONE_A
-                        || opcode == Pyc::POP_JUMP_FORWARD_IF_NOT_NONE_A;
+                        || opcode == Pyc::POP_JUMP_FORWARD_IF_NOT_NONE_A
+                        || opcode == Pyc::POP_JUMP_BACKWARD_IF_TRUE_A
+                        || opcode == Pyc::POP_JUMP_BACKWARD_IF_NONE_A
+                        || opcode == Pyc::POP_JUMP_BACKWARD_IF_NOT_NONE_A;
 
                 int offs = operand;
+
                 if (mod->verCompare(3, 10) >= 0)
                     offs *= sizeof(uint16_t); // // BPO-27129
                 if (mod->verCompare(3, 12) >= 0
                         || opcode == Pyc::JUMP_IF_FALSE_A
                         || opcode == Pyc::JUMP_IF_TRUE_A
                         || opcode == Pyc::POP_JUMP_FORWARD_IF_TRUE_A
-                        || opcode == Pyc::POP_JUMP_FORWARD_IF_FALSE_A) {
+                        || opcode == Pyc::POP_JUMP_FORWARD_IF_FALSE_A
+                        || opcode == Pyc::POP_JUMP_FORWARD_IF_NONE_A
+                        || opcode == Pyc::POP_JUMP_FORWARD_IF_NOT_NONE_A
+                        || opcode == Pyc::POP_JUMP_BACKWARD_IF_TRUE_A
+                        || opcode == Pyc::POP_JUMP_BACKWARD_IF_FALSE_A
+                        || opcode == Pyc::POP_JUMP_BACKWARD_IF_NONE_A
+                        || opcode == Pyc::POP_JUMP_BACKWARD_IF_NOT_NONE_A) {
                     /* Offset is relative in these cases */
                     offs += pos;
+                }
+                if (opcode == Pyc::POP_JUMP_BACKWARD_IF_TRUE_A || opcode == Pyc::POP_JUMP_BACKWARD_IF_FALSE_A ||
+                        opcode == Pyc::POP_JUMP_BACKWARD_IF_NONE_A || opcode == Pyc::POP_JUMP_BACKWARD_IF_NOT_NONE_A) {
+                    offs *= -1;
                 }
 
                 if (cond.type() == ASTNode::NODE_COMPARE
@@ -3141,6 +3169,13 @@ void print_src(PycRef<ASTNode> node, PycModule* mod, std::ostream& pyc_output)
                 // This avoids problems when ''' or """ is part of the string.
                 print_const(pyc_output, val.cast<ASTObject>()->object(), mod, F_STRING_QUOTE);
                 break;
+            case ASTNode::NODE_FUNCTION: { // todo: support me properly
+                PycRef<ASTNode> fun_code = val.cast<ASTFunction>()->code();
+                PycRef<PycCode> code_src = fun_code.cast<ASTObject>()->object().cast<PycCode>();
+                PycRef<PycString> function_name = code_src->name();
+                function_name->print(pyc_output, mod, false, F_STRING_QUOTE);
+                break;
+            }
             default:
                 fprintf(stderr, "Unsupported node type %d in NODE_JOINEDSTR\n", val.type());
             }
